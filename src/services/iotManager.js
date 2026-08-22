@@ -99,6 +99,14 @@ class IoTManager {
         return;
       }
 
+      // Broadcast real-time reading over WebSocket
+      try {
+        const webSocketService = require('./WebSocketService');
+        webSocketService.emitIoTReading(deviceId, data, data.host_id);
+      } catch (wsErr) {
+        logger.debug('WebSocket emit error:', wsErr.message);
+      }
+
       // Store in buffer
       this.dataBuffer.push({
         device_id: deviceId,

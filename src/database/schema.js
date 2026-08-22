@@ -211,6 +211,27 @@ const createSchema = async () => {
       )
     `);
 
+    // ===== wallet_transactions table =====
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS wallet_transactions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        transaction_type VARCHAR(50) NOT NULL,
+        amount DECIMAL(12, 2) NOT NULL,
+        balance_before DECIMAL(12, 2),
+        balance_after DECIMAL(12, 2),
+        description TEXT,
+        reference_id UUID,
+        reference_type VARCHAR(50),
+        status VARCHAR(20) DEFAULT 'completed',
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    await db.query('CREATE INDEX IF NOT EXISTS idx_wallet_transactions_user ON wallet_transactions(user_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_wallet_transactions_created ON wallet_transactions(created_at DESC)');
+
     // ===== devices table =====
     await db.query(`
       CREATE TABLE IF NOT EXISTS devices (

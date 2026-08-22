@@ -421,10 +421,10 @@ class PaymentService {
         JSON.stringify({ reason, razorpay_refund: razorpayRefund }),
       ]);
 
-      // Deduct from wallet
+      // Add refund back to wallet
       await client.query(`
         UPDATE wallets
-        SET balance = balance - $1,
+        SET balance = balance + $1,
             last_transaction_at = NOW(),
             updated_at = NOW()
         WHERE user_id = $2
@@ -440,7 +440,7 @@ class PaymentService {
         )
       `, [
         payment.user_id,
-        -refundAmount,
+        refundAmount,
         `Refund: ${reason}`,
         refundId,
       ]);

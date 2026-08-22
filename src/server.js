@@ -37,6 +37,7 @@ const reportsRoutes = require('./routes/reportsRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const energySourceRoutes = require('./routes/energySourceRoutes');
 const weatherRoutes = require('./routes/weatherRoutes');
+const matchingRoutes = require('./routes/matchingRoutes');
 
 // Services
 const iotService = require('./services/IoTDataService');
@@ -123,6 +124,7 @@ app.use(`/api/${config.apiVersion}/reports`, reportsRoutes);
 app.use(`/api/${config.apiVersion}/report`, reportRoutes);
 app.use(`/api/${config.apiVersion}/energy-sources`, energySourceRoutes);
 app.use(`/api/${config.apiVersion}/weather`, weatherRoutes);
+app.use(`/api/${config.apiVersion}/matching`, matchingRoutes);
 
 // ===== 404 Handler =====
 app.use((req, res) => {
@@ -172,10 +174,16 @@ const startServer = async () => {
       logger.warn('IoT Service initialization failed, continuing without MQTT:', error.message);
     }
 
-    // Start server
+    // Start HTTP & WebSocket server
+    const http = require('http');
+    const webSocketService = require('./services/WebSocketService');
     const PORT = config.port;
-    const server = app.listen(PORT, () => {
+    const server = http.createServer(app);
+    webSocketService.init(server);
+
+    server.listen(PORT, () => {
       logger.info(`Server running on http://localhost:${PORT}`);
+      logger.info(`WebSocket Service listening on ws://localhost:${PORT}/socket.io`);
       logger.info(`API version: ${config.apiVersion}`);
     });
 

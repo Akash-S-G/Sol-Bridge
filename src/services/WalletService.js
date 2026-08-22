@@ -52,7 +52,7 @@ class WalletService {
       // Create transaction record
       await dbClient.query(
         `INSERT INTO wallet_transactions (
-          user_id, type, amount, balance_after, description, status
+          user_id, transaction_type, amount, balance_after, description, status
         ) VALUES ($1, 'credit', $2, $3, $4, 'completed')`,
         [userId, amount, result.rows[0].balance, description]
       );
@@ -118,7 +118,7 @@ class WalletService {
       // Create transaction record
       await dbClient.query(
         `INSERT INTO wallet_transactions (
-          user_id, type, amount, balance_after, description, status
+          user_id, transaction_type, amount, balance_after, description, status
         ) VALUES ($1, 'debit', $2, $3, $4, 'completed')`,
         [userId, -amount, result.rows[0].balance, description]
       );

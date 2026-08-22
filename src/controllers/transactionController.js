@@ -1,4 +1,6 @@
 const transactionService = require('../services/TransactionService');
+const paymentService = require('../services/PaymentService');
+const logger = require('../utils/logger');
 const { asyncHandler } = require('../utils/errors');
 
 // Get wallet balance
@@ -30,7 +32,7 @@ const getTransactionHistory = asyncHandler(async (req, res) => {
     offset
   );
 
-  const total = transactions.length; // TODO: Get actual count from DB
+  const total = await transactionService.getTransactionHistoryCount(req.user.id);
 
   res.json({
     success: true,
@@ -70,28 +72,43 @@ const topupWallet = asyncHandler(async (req, res) => {
 
 // Process payment callback (from payment gateway)
 const processPaymentCallback = asyncHandler(async (req, res) => {
-  const { userId, amount, paymentMethod, paymentGatewayTxnId, status } = req.body;
+  const { userId, amount, paymentMethod, paymentGatewayTxnId } = req.body;
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
-  if (status === 'success') {
-    const result = await transactionService.processWalletTopup(
-      userId,
-      amount,
-      paymentMethod,
-      paymentGatewayTxnId
-    );
-
-    res.json({
-      status: 'success',
-      message: 'Wallet topped up successfully',
-      wallet: result,
-    });
-  } else {
-    res.status(400).json({
-      error: 'PaymentError',
-      message: 'Payment failed',
-      status: status,
+  // Never trust a client-supplied 'status'. Success must be proven via the Razorpay signature.
+  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+    return res.status(400).json({
+      error: 'PaymentVerificationError',
+      message: 'razorpay_order_id, razorpay_payment_id and razorpay_signature are required',
     });
   }
+
+  const isValid = paymentService.verifyPaymentSignature(
+    razorpay_order_id,
+    razorpay_payment_id,
+    razorpay_signature
+  );
+
+  if (!isValid) {
+    logger.warn({ action: 'payment_signature_failed', userId, orderId: razorpay_order_id });
+    return res.status(400).json({
+      error: 'PaymentVerificationError',
+      message: 'Payment signature verification failed',
+    });
+  }
+
+  const result = await transactionService.processWalletTopup(
+    userId,
+    amount,
+    paymentMethod,
+    paymentGatewayTxnId || razorpay_payment_id
+  );
+
+  res.json({
+    status: 'success',
+    message: 'Wallet topped up successfully',
+    wallet: result,
+  });
 });
 
 // Request withdrawal

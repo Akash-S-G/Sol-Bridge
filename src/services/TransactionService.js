@@ -277,6 +277,21 @@ class TransactionService {
     }
   }
 
+  // Get total transaction count for a user (for pagination)
+  async getTransactionHistoryCount(userId) {
+    try {
+      const result = await db.query(
+        `SELECT COUNT(*)::int as total FROM transactions WHERE user_id = $1`,
+        [userId]
+      );
+
+      return result.rows[0]?.total || 0;
+    } catch (error) {
+      logger.error('Error getting transaction history count:', error);
+      throw error;
+    }
+  }
+
   // Calculate daily settlement
   async calculateDailySettlement(date) {
     try {
@@ -306,7 +321,7 @@ class TransactionService {
 
         await db.query(
           `INSERT INTO daily_statements 
-           (user_id, statement_date, total_cost_or_earnings, transaction_data)
+           (user_id, statement_date, total_cost_or_earnings, statement_data)
            VALUES ($1, $2, $3, $4)
            ON CONFLICT (user_id, statement_date) DO UPDATE
            SET total_cost_or_earnings = $3, statement_data = $4`,

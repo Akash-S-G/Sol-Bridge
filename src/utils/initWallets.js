@@ -13,8 +13,7 @@ async function initializeWalletBalances() {
     // Create wallets table if not exists
     await db.query(`
       CREATE TABLE IF NOT EXISTS wallets (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        user_id UUID UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
         balance DECIMAL(12, 2) DEFAULT 0.00 CHECK (balance >= 0),
         currency VARCHAR(3) DEFAULT 'INR',
         created_at TIMESTAMP DEFAULT NOW(),
@@ -25,8 +24,7 @@ async function initializeWalletBalances() {
     // Create wallet_transactions table
     await db.query(`
       CREATE TABLE IF NOT EXISTS wallet_transactions (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        wallet_id UUID REFERENCES wallets(id) ON DELETE CASCADE,
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id UUID REFERENCES users(id) ON DELETE CASCADE,
         transaction_type VARCHAR(50) NOT NULL,
         amount DECIMAL(12, 2) NOT NULL,
@@ -36,6 +34,7 @@ async function initializeWalletBalances() {
         reference_id UUID,
         reference_type VARCHAR(50),
         status VARCHAR(20) DEFAULT 'completed',
+        metadata JSONB DEFAULT '{}',
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
@@ -44,10 +43,6 @@ async function initializeWalletBalances() {
     await db.query(`
       CREATE INDEX IF NOT EXISTS idx_wallet_transactions_user 
       ON wallet_transactions(user_id)
-    `);
-    await db.query(`
-      CREATE INDEX IF NOT EXISTS idx_wallet_transactions_wallet 
-      ON wallet_transactions(wallet_id)
     `);
 
     logger.info('✓ Wallet tables created');
@@ -67,7 +62,6 @@ async function initializeWalletBalances() {
       // Record initial balance transactions
       await db.query(`
         INSERT INTO wallet_transactions (
-          wallet_id,
           user_id,
           transaction_type,
           amount,
@@ -77,7 +71,6 @@ async function initializeWalletBalances() {
           status
         )
         SELECT 
-          w.id,
           w.user_id,
           'initial_balance',
           10000.00,
@@ -102,7 +95,7 @@ async function initializeWalletBalances() {
 
     return true;
   } catch (error) {
-    logger.error('Failed to initialize wallet balances:', error);
+    logger.error('Failed to initialize wallet balances:', error.message);
     return false;
   }
 }

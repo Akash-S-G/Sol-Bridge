@@ -129,14 +129,30 @@ const updateOCRData = asyncHandler(async (req, res) => {
   const { verificationId } = req.params;
   const extractedData = req.body;
 
-  const verification = await DocumentVerificationService.updateExtractedData(
+  const verification = await DocumentVerificationService.getVerificationById(verificationId);
+
+  if (!verification) {
+    return res.status(404).json({
+      error: 'NotFoundError',
+      message: 'Verification not found'
+    });
+  }
+
+  if (verification.user_id !== req.user.id && req.user.role !== 'admin') {
+    return res.status(403).json({
+      error: 'ForbiddenError',
+      message: 'Not authorized to update this verification'
+    });
+  }
+
+  const updated = await DocumentVerificationService.updateExtractedData(
     verificationId,
     extractedData
   );
 
   res.json({
     message: 'OCR data updated',
-    verification
+    verification: updated
   });
 });
 
@@ -148,7 +164,23 @@ const updateAIScore = asyncHandler(async (req, res) => {
   const { verificationId } = req.params;
   const { authenticityScore, flags } = req.body;
 
-  const verification = await DocumentVerificationService.updateAIScore(
+  const verification = await DocumentVerificationService.getVerificationById(verificationId);
+
+  if (!verification) {
+    return res.status(404).json({
+      error: 'NotFoundError',
+      message: 'Verification not found'
+    });
+  }
+
+  if (verification.user_id !== req.user.id && req.user.role !== 'admin') {
+    return res.status(403).json({
+      error: 'ForbiddenError',
+      message: 'Not authorized to update this verification'
+    });
+  }
+
+  const updated = await DocumentVerificationService.updateAIScore(
     verificationId,
     authenticityScore,
     flags
@@ -156,7 +188,7 @@ const updateAIScore = asyncHandler(async (req, res) => {
 
   res.json({
     message: 'AI score updated',
-    verification
+    verification: updated
   });
 });
 

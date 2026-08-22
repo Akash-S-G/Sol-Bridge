@@ -101,9 +101,28 @@ const updateProfile = asyncHandler(async (req, res) => {
   res.success(result, 'Profile updated successfully');
 });
 
+// Logout (invalidate session and blacklist refresh token)
+const logout = asyncHandler(async (req, res) => {
+  const userId = req.user?.id;
+  const refreshToken = req.body?.refreshToken;
+
+  if (userId) {
+    await cacheDel(`session:${userId}`);
+    await cacheDel(`profile:${userId}`);
+  }
+
+  if (refreshToken) {
+    await cacheSet(`blacklist:${refreshToken}`, 'revoked', 30 * 24 * 3600); // 30 days
+  }
+
+  logger.info({ action: 'user_logout', userId });
+  res.success(null, 'Logged out successfully');
+});
+
 module.exports = {
   register,
   login,
+  logout,
   verifyEmail,
   requestPasswordReset,
   resetPassword,

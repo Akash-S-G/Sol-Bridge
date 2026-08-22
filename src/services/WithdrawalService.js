@@ -57,7 +57,7 @@ class WithdrawalService {
       // Create transaction record
       await client.query(
         `INSERT INTO wallet_transactions (
-          user_id, type, amount, balance_after, description, status
+          user_id, transaction_type, amount, balance_after, description, status
         ) VALUES ($1, 'withdrawal_request', $2, $3, $4, 'pending')`,
         [
           userId,
@@ -152,7 +152,7 @@ class WithdrawalService {
         `UPDATE wallet_transactions 
          SET status = 'completed', metadata = jsonb_set(metadata, '{transaction_id}', $1)
          WHERE user_id = $2 
-         AND type = 'withdrawal_request' 
+         AND transaction_type = 'withdrawal_request' 
          AND amount = $3 
          AND status = 'pending'
          ORDER BY created_at DESC
@@ -220,7 +220,7 @@ class WithdrawalService {
         `UPDATE wallet_transactions 
          SET status = 'failed', description = description || ' (Rejected: ' || $1 || ')'
          WHERE user_id = $2 
-         AND type = 'withdrawal_request' 
+         AND transaction_type = 'withdrawal_request' 
          AND amount = $3 
          AND status = 'pending'
          ORDER BY created_at DESC

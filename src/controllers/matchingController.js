@@ -1,6 +1,29 @@
 const matchingService = require('../services/MatchingService');
 const { asyncHandler } = require('../utils/errors');
+const db = require('../database');
 const logger = require('../utils/logger');
+
+/**
+ * Load a buyer's stored location (used by matching & allocation flows)
+ */
+const getBuyerLocation = async (userId) => {
+  const buyerResult = await db.query(
+    `SELECT latitude, longitude, city, state FROM buyers WHERE user_id = $1`,
+    [userId]
+  );
+
+  if (buyerResult.rows.length === 0) {
+    return null;
+  }
+
+  const buyer = buyerResult.rows[0];
+  return {
+    latitude: buyer.latitude,
+    longitude: buyer.longitude,
+    city: buyer.city,
+    state: buyer.state,
+  };
+};
 
 /**
  * Find best sellers for buyer's energy requirement
@@ -18,25 +41,14 @@ const findSellerMatches = asyncHandler(async (req, res) => {
   }
 
   // Get buyer location from database
-  const buyerResult = await db.query(
-    `SELECT latitude, longitude, city, state FROM buyers WHERE user_id = $1`,
-    [userId]
-  );
+  const buyerLocation = await getBuyerLocation(userId);
 
-  if (buyerResult.rows.length === 0) {
+  if (!buyerLocation) {
     return res.status(404).json({
       error: 'NotFoundError',
       message: 'Buyer profile not found',
     });
   }
-
-  const buyer = buyerResult.rows[0];
-  const buyerLocation = {
-    latitude: buyer.latitude,
-    longitude: buyer.longitude,
-    city: buyer.city,
-    state: buyer.state,
-  };
 
   // Get matches from ML service
   const matches = await matchingService.findSellerMatches(
@@ -56,6 +68,59 @@ const findSellerMatches = asyncHandler(async (req, res) => {
         max_price_per_kwh: maxPrice,
         renewable_preference: preferences.renewable || false,
         min_rating: preferences.minRating || 3.0,
+      },
+    },
+  });
+});
+
+/**
+ * Find best buyers for a seller's available energy
+ */
+const findBuyerMatches = asyncHandler(async (req, res) => {
+  const sellerId = req.user.id;
+  const { availableKwh, pricePerKwh } = req.body;
+
+  if (!availableKwh) {
+    return res.status(400).json({
+      error: 'ValidationError',
+      message: 'availableKwh is required',
+    });
+  }
+
+  // Get seller location from database
+  const sellerResult = await db.query(
+    `SELECT latitude, longitude, city, state FROM hosts WHERE user_id = $1`,
+    [sellerId]
+  );
+
+  if (sellerResult.rows.length === 0) {
+    return res.status(404).json({
+      error: 'NotFoundError',
+      message: 'Host profile not found',
+    });
+  }
+
+  const seller = sellerResult.rows[0];
+  const sellerLocation = {
+    latitude: seller.latitude,
+    longitude: seller.longitude,
+    city: seller.city,
+    state: seller.state,
+  };
+
+  const matches = await matchingService.findBuyerMatches(
+    sellerId,
+    availableKwh,
+    sellerLocation
+  );
+
+  res.json({
+    success: true,
+    data: {
+      ...matches,
+      seller_availability: {
+        available_kwh: availableKwh,
+        price_per_kwh: pricePerKwh || null,
       },
     },
   });
@@ -163,11 +228,21 @@ const createAllocation = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const { requiredKwh, maxPrice, preferences = {} } = req.body;
 
+  const buyerLocation = await getBuyerLocation(userId);
+
+  if (!buyerLocation) {
+    return res.status(404).json({
+      error: 'NotFoundError',
+      message: 'Buyer profile not found',
+    });
+  }
+
   // Find matches
   const matches = await matchingService.findSellerMatches(
     userId,
     requiredKwh,
     maxPrice,
+    buyerLocation,
     preferences
   );
 
@@ -197,8 +272,53 @@ const createAllocation = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * Calculate estimated cost for given requirements
+ */
+const calculateEstimate = asyncHandler(async (req, res) => {
+  const { requiredKwh, maxPrice } = req.body;
+
+  if (!requiredKwh || !maxPrice) {
+    return res.status(400).json({
+      error: 'ValidationError',
+      message: 'requiredKwh and maxPrice are required',
+    });
+  }
+
+  const priceResult = await db.query(
+    `SELECT 
+       COALESCE(AVG(price_per_kwh), 0) as avg_price,
+       COALESCE(MIN(price_per_kwh), 0) as min_price,
+       COALESCE(MAX(price_per_kwh), 0) as max_price
+     FROM listings
+     WHERE status = 'active'`
+  );
+
+  const avgPrice = parseFloat(priceResult.rows[0].avg_price) || maxPrice;
+  const minPrice = parseFloat(priceResult.rows[0].min_price) || maxPrice;
+  const maxListingPrice = parseFloat(priceResult.rows[0].max_price) || maxPrice;
+
+  // Grid rate assumption (₹/kWh) used to compute savings
+  const gridRate = maxPrice * 1.5;
+  const estimatedMonthlyCost = requiredKwh * avgPrice;
+  const potentialSavings = requiredKwh * (gridRate - avgPrice);
+
+  res.json({
+    success: true,
+    data: {
+      estimated_monthly_cost: Math.round(estimatedMonthlyCost * 100) / 100,
+      average_price_per_kwh: avgPrice,
+      potential_savings: Math.max(0, Math.round(potentialSavings * 100) / 100),
+      best_seller_price: minPrice,
+      worst_seller_price: maxListingPrice,
+    },
+  });
+});
+
 module.exports = {
   findSellerMatches,
+  findBuyerMatches,
   getMatchDetails,
   createAllocation,
+  calculateEstimate,
 };
