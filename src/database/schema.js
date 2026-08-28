@@ -452,6 +452,7 @@ const createSchema = async () => {
 
     await db.query('CREATE INDEX IF NOT EXISTS idx_energy_listings_seller ON energy_listings(seller_id)');
     await db.query('CREATE INDEX IF NOT EXISTS idx_energy_listings_status ON energy_listings(status)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_energy_listings_status_seller ON energy_listings(status, seller_id)');
     await db.query('CREATE INDEX IF NOT EXISTS idx_energy_listings_dates ON energy_listings(available_from, available_to)');
     await db.query('CREATE INDEX IF NOT EXISTS idx_energy_listings_price ON energy_listings(price_per_kwh)');
     await db.query('CREATE INDEX IF NOT EXISTS idx_energy_listings_location ON energy_listings(location_latitude, location_longitude) WHERE location_latitude IS NOT NULL AND location_longitude IS NOT NULL');

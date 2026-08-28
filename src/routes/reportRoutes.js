@@ -3,6 +3,7 @@
  */
 
 const express = require('express');
+const path = require('path');
 const router = express.Router();
 const ReportService = require('../services/ReportService');
 const { authenticate } = require('../middleware/auth');
@@ -99,8 +100,11 @@ router.get('/download/:filename', authenticate, async (req, res) => {
     const { filename } = req.params;
     const userId = req.user.id;
 
-    // Verify file belongs to user
-    if (!filename.includes(userId)) {
+    // Sanitize filename to prevent directory traversal
+    const safeFilename = path.basename(filename);
+
+    // Verify file belongs to user or matches user prefix
+    if (!safeFilename.startsWith(`report_${userId}_`) && safeFilename !== `user_${userId}_analytics.json` && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         error: 'Access denied',

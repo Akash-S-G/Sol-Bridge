@@ -170,6 +170,8 @@ const schemas = {
   }),
 };
 
+const { ValidationError } = require('./errors');
+
 // Validate function
 const validate = (data, schema) => {
   const { error, value } = schema.validate(data, {
@@ -182,7 +184,7 @@ const validate = (data, schema) => {
       acc[err.path.join('.')] = err.message;
       return acc;
     }, {});
-    throw new Error(JSON.stringify(details));
+    throw new ValidationError('Validation failed', details);
   }
 
   return value;

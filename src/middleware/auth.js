@@ -49,11 +49,12 @@ const authorize = (...allowedRoles) => {
 // Rate limiting middleware
 const createRateLimiter = (redis, windowMs = 60000, maxRequests = 100) => {
   return async (req, res, next) => {
-    if (!req.user || !redis) {
+    if (!redis) {
       return next();
     }
 
-    const key = `ratelimit:${req.user.id}:${req.path}:${Math.floor(Date.now() / windowMs)}`;
+    const identifier = req.user?.id || req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'anonymous';
+    const key = `ratelimit:${identifier}:${req.path}:${Math.floor(Date.now() / windowMs)}`;
     
     try {
       const count = await redis.incr(key);

@@ -59,7 +59,8 @@ class MarketplaceService {
           u.full_name as seller_name,
           u.kyc_status as seller_kyc_status,
           d.device_type,
-          d.device_model
+          d.device_model,
+          COUNT(*) OVER() as total_count
         FROM energy_listings l
         JOIN users u ON l.seller_id = u.id
         LEFT JOIN devices d ON l.device_id = d.device_id
