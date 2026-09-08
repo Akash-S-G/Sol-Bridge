@@ -177,8 +177,8 @@ class PaymentService {
    */
   verifyPaymentSignature(orderId, paymentId, signature) {
     try {
-      // Test mode: always valid
-      if (this.testMode || orderId.startsWith('test_order_')) {
+      // Test mode only in non-production
+      if (this.testMode && process.env.NODE_ENV !== 'production' && orderId.startsWith('test_order_')) {
         logger.info('Test mode: Skipping signature verification');
         return true;
       }

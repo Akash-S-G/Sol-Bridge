@@ -31,13 +31,19 @@ module.exports = {
     },
   },
 
-  // JWT
-  jwt: {
-    secret: process.env.JWT_SECRET || 'change-me-in-production',
-    expiresIn: process.env.JWT_EXPIRY || '24h',
-    refreshSecret: process.env.JWT_REFRESH_SECRET || 'change-me-refresh',
-    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRY || '30d',
-  },
+  // JWT — fail closed in production, HS256 pinned
+  jwt: (() => {
+    const isProd = process.env.NODE_ENV === 'production';
+    if (isProd && !process.env.JWT_SECRET) throw new Error('JWT_SECRET required in production');
+    if (isProd && !process.env.JWT_REFRESH_SECRET) throw new Error('JWT_REFRESH_SECRET required in production');
+    return {
+      secret: process.env.JWT_SECRET || 'dev-only-jwt-secret-change-me',
+      expiresIn: process.env.JWT_EXPIRY || '15m',
+      refreshSecret: process.env.JWT_REFRESH_SECRET || 'dev-only-refresh-secret-change-me',
+      refreshExpiresIn: process.env.JWT_REFRESH_EXPIRY || '7d',
+      algorithm: 'HS256',
+    };
+  })(),
 
   // MQTT
   mqtt: {

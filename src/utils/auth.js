@@ -13,16 +13,18 @@ const comparePasswords = async (password, hash) => {
   return bcrypt.compare(password, hash);
 };
 
-// JWT token generation
+// JWT token generation — HS256 pinned, 15m access
 const generateAccessToken = (payload) => {
   return jwt.sign(payload, config.jwt.secret, {
     expiresIn: config.jwt.expiresIn,
+    algorithm: config.jwt.algorithm,
   });
 };
 
 const generateRefreshToken = (payload) => {
-  return jwt.sign(payload, config.jwt.refreshSecret, {
+  return jwt.sign({ ...payload, jti: require('uuid').v4() }, config.jwt.refreshSecret, {
     expiresIn: config.jwt.refreshExpiresIn,
+    algorithm: config.jwt.algorithm,
   });
 };
 
@@ -33,10 +35,10 @@ const generateTokenPair = (payload) => {
   };
 };
 
-// JWT verification
+// JWT verification — HS256 pinned
 const verifyAccessToken = (token) => {
   try {
-    return jwt.verify(token, config.jwt.secret);
+    return jwt.verify(token, config.jwt.secret, { algorithms: [config.jwt.algorithm] });
   } catch (error) {
     throw new AuthenticationError('Invalid or expired token');
   }
@@ -44,24 +46,19 @@ const verifyAccessToken = (token) => {
 
 const verifyRefreshToken = (token) => {
   try {
-    return jwt.verify(token, config.jwt.refreshSecret);
+    return jwt.verify(token, config.jwt.refreshSecret, { algorithms: [config.jwt.algorithm] });
   } catch (error) {
     throw new AuthenticationError('Invalid or expired refresh token');
   }
 };
 
-// Extract token from headers
+// Extract token from headers — trims, case-insensitive Bearer
 const extractToken = (authHeader) => {
-  if (!authHeader) {
-    return null;
-  }
-
-  const parts = authHeader.split(' ');
-  if (parts.length !== 2 || parts[0] !== 'Bearer') {
-    return null;
-  }
-
-  return parts[1];
+  if (!authHeader) return null;
+  const trimmed = authHeader.trim();
+  const parts = trimmed.split(/\s+/);
+  if (parts.length !== 2 || parts[0].toLowerCase() !== 'bearer') return null;
+  return parts[1].trim();
 };
 
 module.exports = {

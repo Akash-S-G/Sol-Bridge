@@ -2,13 +2,20 @@ const { verifyAccessToken, extractToken } = require('../utils/auth');
 const { AuthenticationError, AuthorizationError } = require('../utils/errors');
 const logger = require('../utils/logger');
 
-// Authentication middleware
-const authenticate = (req, res, next) => {
+// Authentication middleware — checks blacklist (logout)
+const authenticate = async (req, res, next) => {
   try {
     const token = extractToken(req.headers.authorization);
-    
-    if (!token) {
-      throw new AuthenticationError('No token provided');
+    if (!token) throw new AuthenticationError('No token provided');
+
+    // Blacklist check (logout)
+    try {
+      const { cacheGet } = require('../utils/cache');
+      const blacklisted = await cacheGet(`blacklist:${token}`);
+      if (blacklisted) throw new AuthenticationError('Token revoked');
+    } catch (e) {
+      if (e instanceof AuthenticationError) throw e;
+      // Cache down — fail open but log
     }
 
     const payload = verifyAccessToken(token);
@@ -16,10 +23,7 @@ const authenticate = (req, res, next) => {
     next();
   } catch (error) {
     if (error instanceof AuthenticationError) {
-      return res.status(401).json({
-        error: 'AuthenticationError',
-        message: error.message,
-      });
+      return res.status(401).json({ error: 'AuthenticationError', message: error.message });
     }
     next(error);
   }

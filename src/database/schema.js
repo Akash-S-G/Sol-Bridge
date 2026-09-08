@@ -5,8 +5,9 @@ const createSchema = async () => {
   try {
     logger.info('Creating database schema...');
 
-    // Enable extensions (skip postgis and timescaledb if not installed)
+    // Enable extensions
     await db.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
+    await db.query('CREATE EXTENSION IF NOT EXISTS "pgcrypto"');
     
     // Try postgis, but don't fail if not available (silently skip)
     try {
@@ -31,7 +32,7 @@ const createSchema = async () => {
         role VARCHAR(20) NOT NULL CHECK (role IN ('host', 'buyer', 'investor', 'admin')),
         full_name VARCHAR(255),
         phone VARCHAR(20),
-        is_verified BOOLEAN DEFAULT TRUE,
+        is_verified BOOLEAN DEFAULT FALSE,
         is_active BOOLEAN DEFAULT TRUE,
         kyc_status VARCHAR(20) DEFAULT 'pending' CHECK (kyc_status IN ('pending', 'submitted', 'verified', 'rejected')),
         failed_login_attempts INTEGER DEFAULT 0,

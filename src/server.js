@@ -51,9 +51,11 @@ const app = express();
 app.use(helmet());
 app.use(cors(corsOptions));
 
-// Parsing
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// Webhook raw body must come BEFORE json parser
+app.use('/api/v1/payment/webhook/razorpay', express.raw({ type: 'application/json' }));
+// Parsing — 1mb limit (was 50mb DoS)
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ limit: '10kb', extended: true }));
 
 // Custom request logging (cleaner than pinoHttp)
 app.use((req, res, next) => {

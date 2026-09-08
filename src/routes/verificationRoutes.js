@@ -92,7 +92,7 @@ router.get('/:verificationId', authenticate, verificationController.getVerificat
 router.get(
   '/admin/pending',
   authenticate,
-  authorize(['admin']),
+  authorize('admin'),
   verificationController.getPendingVerifications
 );
 
@@ -104,7 +104,7 @@ router.get(
 router.put(
   '/admin/:verificationId/approve',
   authenticate,
-  authorize(['admin']),
+  authorize('admin'),
   verificationController.approveVerification
 );
 
@@ -116,7 +116,7 @@ router.put(
 router.put(
   '/admin/:verificationId/reject',
   authenticate,
-  authorize(['admin']),
+  authorize('admin'),
   verificationController.rejectVerification
 );
 
@@ -127,7 +127,7 @@ router.put(
 router.get(
   '/admin/stats',
   authenticate,
-  authorize(['admin']),
+  authorize('admin'),
   verificationController.getVerificationStats
 );
 

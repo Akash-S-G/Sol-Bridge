@@ -45,7 +45,7 @@ class UserManagementService {
         const userId = uuidv4();
         const userResult = await client.query(
           `INSERT INTO users (id, email, password_hash, role, full_name, phone, is_verified)
-           VALUES ($1, $2, $3, $4, $5, $6, TRUE)
+            VALUES ($1, $2, $3, $4, $5, $6, FALSE)
            RETURNING id, email, role`,
           [userId, email.toLowerCase(), passwordHash, role, full_name, phone]
         );
@@ -369,19 +369,19 @@ class UserManagementService {
           const role = userResult.rows[0].role;
 
           if (role === 'host' && Object.keys(profile).length > 0) {
+            const ALLOWED_HOST_FIELDS = ['solar_capacity_kw','panel_brand','panel_model','installation_date','has_battery','battery_capacity_kwh','address','city','state','pincode','meter_id','roof_type','roof_orientation'];
             const hostUpdates = [];
             const hostValues = [userId];
             let hostParamCount = 2;
 
             Object.entries(profile).forEach(([key, value]) => {
               if (key === 'location' && value) {
-                // Use separate lat/lon columns instead of PostGIS POINT
                 hostUpdates.push(`latitude = $${hostParamCount}`);
                 hostValues.push(value.lat || 0);
                 hostParamCount++;
                 hostUpdates.push(`longitude = $${hostParamCount}`);
                 hostValues.push(value.lon || 0);
-              } else {
+              } else if (ALLOWED_HOST_FIELDS.includes(key)) {
                 hostUpdates.push(`${key} = $${hostParamCount}`);
                 hostValues.push(value);
               }
