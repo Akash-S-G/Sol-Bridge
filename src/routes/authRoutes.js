@@ -13,6 +13,7 @@ router.post('/auth/refresh-token', authController.refreshAccessToken);
 
 // Protected routes
 router.post('/auth/logout', authenticate, authController.logout);
+router.post('/auth/change-password', authenticate, authController.changePassword);
 router.get('/users/profile', authenticate, authController.getProfile);
 router.put('/users/profile', authenticate, authController.updateProfile);
 

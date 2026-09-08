@@ -137,6 +137,11 @@ const schemas = {
     newPassword: strongPasswordSchema,
   }),
 
+  changePassword: Joi.object({
+    currentPassword: Joi.string().required(),
+    newPassword: strongPasswordSchema,
+  }),
+
   refreshToken: Joi.object({
     refreshToken: Joi.string().required(),
   }),

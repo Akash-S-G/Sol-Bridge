@@ -1,6 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../database');
-const { hashPassword, comparePasswords, generateTokenPair } = require('../utils/auth');
+const { hashPassword, comparePasswords, generateTokenPair, verifyRefreshToken } = require('../utils/auth');
 const { ValidationError, ConflictError, NotFoundError, AuthenticationError } = require('../utils/errors');
 const { cacheSet, cacheGet, cacheDel } = require('../utils/cache');
 const crypto = require('crypto');
@@ -485,6 +485,17 @@ class UserManagementService {
     });
 
     return { message: 'Password reset successful' };
+  }
+
+  // Change Password (authenticated)
+  async changePassword(userId, currentPassword, newPassword) {
+    const userResult = await db.query('SELECT password_hash FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) throw new NotFoundError('User');
+    const valid = await comparePasswords(currentPassword, userResult.rows[0].password_hash);
+    if (!valid) throw new AuthenticationError('Current password is incorrect');
+    const passwordHash = await hashPassword(newPassword);
+    await db.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [passwordHash, userId]);
+    return { message: 'Password changed successfully' };
   }
 
   // Refresh Token

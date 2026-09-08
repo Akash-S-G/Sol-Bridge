@@ -119,6 +119,13 @@ const logout = asyncHandler(async (req, res) => {
   res.success(null, 'Logged out successfully');
 });
 
+const changePassword = asyncHandler(async (req, res) => {
+  const data = validate(req.body, schemas.changePassword);
+  const result = await userService.changePassword(req.user.id, data.currentPassword, data.newPassword);
+  logger.info({ action: 'password_changed', userId: req.user.id });
+  res.success(result, 'Password changed successfully');
+});
+
 module.exports = {
   register,
   login,
@@ -129,4 +136,5 @@ module.exports = {
   refreshAccessToken,
   getProfile,
   updateProfile,
+  changePassword,
 };
