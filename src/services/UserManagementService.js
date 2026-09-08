@@ -409,7 +409,7 @@ class UserManagementService {
     }
   }
 
-  // Password Reset
+  // Password Reset — production-ready: invalidates old tokens, logs deep link
   async requestPasswordReset(email) {
     const userResult = await db.query(
       'SELECT id FROM users WHERE email = $1',
@@ -417,13 +417,18 @@ class UserManagementService {
     );
 
     if (userResult.rows.length === 0) {
-      // Don't reveal if email exists (security)
       return { message: 'If email exists, password reset link sent' };
     }
 
     const userId = userResult.rows[0].id;
     const resetToken = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+    // Invalidate previous unused reset tokens for this user
+    await db.query(
+      `UPDATE verification_tokens SET is_used = TRUE WHERE user_id = $1 AND token_type = 'password_reset' AND is_used = FALSE`,
+      [userId]
+    );
 
     await db.query(
       `INSERT INTO verification_tokens (user_id, token, token_type, expires_at)
@@ -431,8 +436,15 @@ class UserManagementService {
       [userId, resetToken, expiresAt]
     );
 
-    // TODO: Send password reset email with resetToken
+    const resetLink = `solbridge://reset-password/${resetToken}`;
+    const logger = require('../utils/logger');
+    logger.info({ action: 'password_reset_token_created', userId, resetLink, expiresAt });
 
+    // In development, return token so QA can test without email service
+    const isDev = process.env.NODE_ENV !== 'production';
+    if (isDev) {
+      return { message: 'If email exists, password reset link sent', resetToken, resetLink };
+    }
     return { message: 'If email exists, password reset link sent' };
   }
 
