@@ -76,13 +76,9 @@ app.use((req, res, next) => {
 // Standard Response Middleware
 app.use(responseMiddleware);
 
-// Rate limiting (if Redis available)
-if (redisAvailable()) {
-  const rateLimiter = createRateLimiter(redis, config.rateLimit.windowMs, config.rateLimit.maxRequests);
-  app.use('/api/', rateLimiter);
-} else {
-  logger.warn('Rate limiting disabled (requires Redis)');
-}
+// Rate limiting (uses Redis dynamically)
+const rateLimiter = createRateLimiter(redis, config.rateLimit.windowMs, config.rateLimit.maxRequests);
+app.use('/api/', rateLimiter);
 
 // ===== Health Check =====
 app.get('/health', async (req, res) => {

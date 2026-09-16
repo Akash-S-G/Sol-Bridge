@@ -51,9 +51,12 @@ const authorize = (...allowedRoles) => {
 };
 
 // Rate limiting middleware
-const createRateLimiter = (redis, windowMs = 60000, maxRequests = 100) => {
+const createRateLimiter = (redisClient, windowMs = 60000, maxRequests = 100) => {
   return async (req, res, next) => {
-    if (!redis) {
+    const { redis: activeRedis, redisAvailable } = require('../utils/cache');
+    const r = activeRedis || redisClient;
+
+    if (!redisAvailable() || !r) {
       return next();
     }
 
@@ -61,10 +64,10 @@ const createRateLimiter = (redis, windowMs = 60000, maxRequests = 100) => {
     const key = `ratelimit:${identifier}:${req.path}:${Math.floor(Date.now() / windowMs)}`;
     
     try {
-      const count = await redis.incr(key);
+      const count = await r.incr(key);
       
       if (count === 1) {
-        await redis.expire(key, Math.ceil(windowMs / 1000));
+        await r.expire(key, Math.ceil(windowMs / 1000));
       }
 
       res.set('X-RateLimit-Limit', maxRequests);

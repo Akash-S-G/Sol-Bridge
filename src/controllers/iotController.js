@@ -89,6 +89,21 @@ const ingestData = asyncHandler(async (req, res) => {
       [data.device_id]
     );
 
+    // Hot path: Store latest telemetry reading in Redis (1 hour TTL)
+    await cacheSet(`iot:latest:${data.device_id}`, {
+      device_id: data.device_id,
+      user_id: data.user_id,
+      time: data.timestamp,
+      power_kw: powerKw,
+      energy_kwh: energyKwh,
+      voltage: measurements.voltage || 0,
+      current: measurements.current || 0,
+      frequency: measurements.frequency || 0,
+      power_factor: measurements.power_factor || null,
+      battery_soc: measurements.battery_soc || null,
+      temperature: measurements.temperature || null,
+    }, 3600);
+
     logger.info(`✅ Data stored: Power=${powerKw}kW, V=${measurements.voltage}V, I=${measurements.current}A`);
 
     res.json({
@@ -129,7 +144,29 @@ const getDeviceLatestReading = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, error: 'DeviceNotFound', message: 'Device not found or does not belong to you' });
   }
 
-  // Fetch latest reading for this device
+  // Hot path: Check Redis cache first
+  const cacheKey = `iot:latest:${deviceId}`;
+  const cachedReading = await cacheGet(cacheKey);
+  if (cachedReading) {
+    logger.debug(`Returning latest reading for device ${deviceId} from Redis cache`);
+    const powerKw = parseFloat(cachedReading.power_kw) || 0;
+    const voltage = parseFloat(cachedReading.voltage) || 0;
+    const current = parseFloat(cachedReading.current) || 0;
+    return res.json({
+      success: true,
+      data: {
+        device_id: deviceId,
+        reading: cachedReading,
+        power_kw: powerKw,
+        voltage,
+        current,
+        last_updated: cachedReading.time || new Date().toISOString(),
+        cached: true,
+      },
+    });
+  }
+
+  // Cold path: Fetch latest reading from PostgreSQL
   const result = await db.query(
     `SELECT time, power_kw, energy_kwh, voltage, current, frequency, power_factor, battery_soc, temperature
      FROM energy_readings

@@ -1,5 +1,6 @@
 const db = require('../database');
 const logger = require('../utils/logger');
+const { cacheGet, cacheSet, cacheClear } = require('../utils/cache');
 const PushNotificationService = require('./PushNotificationService');
 const ReportService = require('./ReportService');
 
@@ -31,6 +32,9 @@ class MarketplaceService {
         RETURNING *
       `, [userId, device_id, energy_amount_kwh, price_per_kwh, available_from, available_to, listing_type, min_purchase_kwh, location_latitude, location_longitude, renewable_cert, description]);
 
+      // Invalidate marketplace cache
+      await cacheClear('marketplace:listings*');
+
       return result.rows[0];
     } catch (error) {
       logger.error('Error creating listing:', error);
@@ -41,6 +45,12 @@ class MarketplaceService {
   // Get all active listings with filters
   async getListings(filters = {}) {
     try {
+      const cacheKey = `marketplace:listings:${JSON.stringify(filters)}`;
+      const cached = await cacheGet(cacheKey);
+      if (cached) {
+        logger.debug('Returning marketplace listings from Redis cache');
+        return cached;
+      }
       const {
         min_price,
         max_price,
@@ -115,7 +125,9 @@ class MarketplaceService {
       params.push(limit, offset);
 
       const result = await db.query(query, params);
-      return result.rows;
+      const rows = result.rows;
+      await cacheSet(cacheKey, rows, 30);
+      return rows;
     } catch (error) {
       logger.error('Error getting listings:', error);
       throw error;

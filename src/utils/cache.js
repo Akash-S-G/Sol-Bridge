@@ -3,33 +3,41 @@ const config = require('../config');
 const logger = require('../utils/logger');
 
 let redis = null;
-let redisAvailable = false;
+let redisAvailableFlag = false;
 
 try {
   redis = new Redis(config.redis);
   
   redis.on('connect', () => {
-    redisAvailable = true;
-    logger.debug('Redis connected');
+    redisAvailableFlag = true;
+    logger.info('🟢 Redis connected successfully');
+  });
+
+  redis.on('ready', () => {
+    redisAvailableFlag = true;
   });
   
   redis.on('error', (err) => {
-    redisAvailable = false;
-    logger.debug('Redis error (caching disabled):', err.message);
+    redisAvailableFlag = false;
+    logger.warn('Redis error (caching disabled):', err.message);
   });
   
   redis.on('close', () => {
-    redisAvailable = false;
-    logger.debug('Redis connection closed');
+    redisAvailableFlag = false;
+    logger.warn('Redis connection closed');
   });
 } catch (err) {
-  logger.debug('Redis initialization failed, caching disabled:', err.message);
-  redisAvailable = false;
+  logger.warn('Redis initialization failed, caching disabled:', err.message);
+  redisAvailableFlag = false;
 }
+
+const isRedisAvailable = () => {
+  return Boolean(redis && (redis.status === 'ready' || redis.status === 'connect' || redisAvailableFlag));
+};
 
 // Cache wrapper with TTL (gracefully degrades if Redis unavailable)
 const cacheSet = async (key, value, ttl = 3600) => {
-  if (!redisAvailable || !redis) return;
+  if (!isRedisAvailable() || !redis) return;
   try {
     const serialized = JSON.stringify(value);
     if (ttl) {
@@ -43,7 +51,7 @@ const cacheSet = async (key, value, ttl = 3600) => {
 };
 
 const cacheGet = async (key) => {
-  if (!redisAvailable || !redis) return null;
+  if (!isRedisAvailable() || !redis) return null;
   try {
     const value = await redis.get(key);
     return value ? JSON.parse(value) : null;
@@ -54,7 +62,7 @@ const cacheGet = async (key) => {
 };
 
 const cacheDel = async (key) => {
-  if (!redisAvailable || !redis) return;
+  if (!isRedisAvailable() || !redis) return;
   try {
     await redis.del(key);
   } catch (error) {
@@ -63,19 +71,20 @@ const cacheDel = async (key) => {
 };
 
 const cacheClear = async (pattern) => {
+  if (!isRedisAvailable() || !redis) return;
   try {
     const keys = await redis.keys(pattern);
     if (keys.length > 0) {
       await redis.del(...keys);
     }
   } catch (error) {
-    logger.error('Cache clear error:', error);
+    logger.warn('Cache clear error:', error.message);
   }
 };
 
 module.exports = {
   redis,
-  redisAvailable: () => redisAvailable,
+  redisAvailable: isRedisAvailable,
   cacheSet,
   cacheGet,
   cacheDel,

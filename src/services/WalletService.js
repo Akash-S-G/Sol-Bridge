@@ -5,6 +5,7 @@
 
 const db = require('../database');
 const logger = require('../utils/logger');
+const { cacheGet, cacheSet, cacheDel } = require('../utils/cache');
 
 class WalletService {
   /**
@@ -12,6 +13,13 @@ class WalletService {
    */
   static async getBalance(userId) {
     try {
+      const cacheKey = `wallet:balance:${userId}`;
+      const cached = await cacheGet(cacheKey);
+      if (cached !== null && cached !== undefined) {
+        logger.debug(`Returning wallet balance for user ${userId} from Redis cache`);
+        return cached;
+      }
+
       const query = 'SELECT balance FROM wallets WHERE user_id = $1';
       const result = await db.query(query, [userId]);
       
@@ -19,9 +27,12 @@ class WalletService {
         throw new Error('Wallet not found');
       }
 
-      return {
+      const resObj = {
         balance: parseFloat(result.rows[0].balance) || 0,
       };
+
+      await cacheSet(cacheKey, resObj, 60); // 60s TTL
+      return resObj;
     } catch (error) {
       logger.error('Error getting wallet balance:', error);
       throw error;
@@ -60,6 +71,8 @@ class WalletService {
       if (!client) {
         await dbClient.query('COMMIT');
       }
+
+      await cacheDel(`wallet:balance:${userId}`);
 
       logger.info(`Added ₹${amount} to wallet for user ${userId}`);
       return {
@@ -126,6 +139,8 @@ class WalletService {
       if (!client) {
         await dbClient.query('COMMIT');
       }
+
+      await cacheDel(`wallet:balance:${userId}`);
 
       logger.info(`Deducted ₹${amount} from wallet for user ${userId}`);
       return {
