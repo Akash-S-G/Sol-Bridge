@@ -1,6 +1,7 @@
 const { Pool } = require('pg');
 const config = require('../config');
 const logger = require('../utils/logger');
+const prisma = require('./prisma');
 
 // Create connection pool
 const pool = new Pool(config.database);
@@ -14,7 +15,8 @@ pool.on('error', (err) => {
 const testConnection = async () => {
   try {
     const result = await pool.query('SELECT NOW()');
-    logger.info('Database connection successful');
+    await prisma.$queryRaw`SELECT 1`;
+    logger.info('Database connection successful (pg pool & Prisma ORM initialized)');
     return true;
   } catch (error) {
     logger.error('Database connection failed:', error);
@@ -63,14 +65,17 @@ const getClient = async () => {
 // Close pool
 const closePool = async () => {
   await pool.end();
-  logger.info('Database pool closed');
+  await prisma.$disconnect();
+  logger.info('Database pool & Prisma client closed');
 };
 
 module.exports = {
   pool,
+  prisma,
   query,
   transaction,
   getClient,
   testConnection,
   closePool,
 };
+
